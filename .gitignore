@@ -1,0 +1,111 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyTorch
+*.pth
+*.pt
+checkpoints/
+runs/
+logs/
+tensorboard_logs/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Medical Data (IMPORTANT - keep private!)
+Dataset001_Spleen/
+*.nii
+*.nii.gz
+*.dcm
+*.dicom
+medical_data/
+datasets/
+raw_data/
+
+# Data files
+data_splits.json
+*.json
+*.nii
+*.nii.gz
+
+# Model outputs
+outputs/
+results/
+predictions/
+masks/
+visualizations/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Conda
+.conda/
+
+# Weights & Biases
+wandb/
+
+# MLflow
+mlruns/
+
+# Other
+*.zip
+*.tar.gz
+*.rar

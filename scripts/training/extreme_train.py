@@ -21,6 +21,15 @@ from models.unet_model import create_model
 from utils.data_loader import get_single_patch_loader
 from utils.utils import BCEDiceLoss, calculate_metrics, print_metrics, save_checkpoint, load_checkpoint, visualize_predictions
 
+# Global log file
+LOG_FILE = '/teamspace/studios/this_studio/spleen/logs/extreme_training.log'
+
+def log_message(message):
+    """Log message to both console and file"""
+    print(message)
+    with open(LOG_FILE, 'a') as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+
 class ExtremeTrainer:
     def __init__(self, model, train_loader, val_loader, device, config):
         self.model = model
@@ -37,7 +46,7 @@ class ExtremeTrainer:
         )
         
         # Checkpointing
-        self.checkpoint_dir = Path('extreme_checkpoints')
+        self.checkpoint_dir = Path('/teamspace/studios/this_studio/spleen/checkpoints/extreme_training')
         self.checkpoint_dir.mkdir(exist_ok=True)
         
         # Tensorboard
@@ -55,7 +64,7 @@ class ExtremeTrainer:
     
     def log_message(self, message):
         """Log message to both console and file"""
-        print(message)
+        log_message(message)
         with open(self.log_file, 'a') as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
         
@@ -90,7 +99,7 @@ class ExtremeTrainer:
             
             # Print progress every 100 epochs
             if epoch % 100 == 0:
-                print(f'Epoch {epoch}, Loss: {loss.item():.6f}, Dice: {metrics["dice"]:.6f}')
+                log_message(f'Epoch {epoch}, Loss: {loss.item():.6f}, Dice: {metrics["dice"]:.6f}')
         
         # Calculate averages
         avg_loss = total_loss / len(self.train_loader)
@@ -129,11 +138,11 @@ class ExtremeTrainer:
     
     def train(self, num_epochs):
         """Main training loop for extreme testing"""
-        print(f"🔥 EXTREME TRAINING - Starting training for {num_epochs} epochs on 1 patch...")
-        print(f"Device: {self.device}")
-        print(f"Train samples: {len(self.train_loader.dataset)}")
-        print(f"Val samples: {len(self.val_loader.dataset)}")
-        print("⚠️  WARNING: This will overfit completely!")
+        log_message(f"🔥 EXTREME TRAINING - Starting training for {num_epochs} epochs on 1 patch...")
+        log_message(f"Device: {self.device}")
+        log_message(f"Train samples: {len(self.train_loader.dataset)}")
+        log_message(f"Val samples: {len(self.val_loader.dataset)}")
+        log_message("⚠️  WARNING: This will overfit completely!")
         
         for epoch in range(self.start_epoch, num_epochs):
             start_time = time.time()
@@ -158,49 +167,48 @@ class ExtremeTrainer:
             self.writer.add_scalar('PixelAcc/Val', val_metrics['pixel_acc'], epoch)
             self.writer.add_scalar('Learning_Rate', self.optimizer.param_groups[0]['lr'], epoch)
             
-            # Print epoch results every 100 epochs
-            if epoch % 100 == 0:
-                epoch_time = time.time() - start_time
-                print(f'\nEpoch {epoch+1}/{num_epochs} ({epoch_time:.1f}s)')
-                print(f'Train - Loss: {train_loss:.6f}, Dice: {train_metrics["dice"]:.6f}, IoU: {train_metrics["iou"]:.6f}')
-                print(f'Val   - Loss: {val_loss:.6f}, Dice: {val_metrics["dice"]:.6f}, IoU: {val_metrics["iou"]:.6f}')
-                print(f'LR: {self.optimizer.param_groups[0]["lr"]:.2e}')
+            # Print epoch results every epoch
+            epoch_time = time.time() - start_time
+            log_message(f'Epoch {epoch+1}/{num_epochs} ({epoch_time:.1f}s)')
+            log_message(f'Train - Loss: {train_loss:.6f}, Dice: {train_metrics["dice"]:.6f}, IoU: {train_metrics["iou"]:.6f}')
+            log_message(f'Val   - Loss: {val_loss:.6f}, Dice: {val_metrics["dice"]:.6f}, IoU: {val_metrics["iou"]:.6f}')
+            log_message(f'LR: {self.optimizer.param_groups[0]["lr"]:.2e}')
             
             # Save checkpoint
             is_best = val_loss < self.best_val_loss
             if is_best:
                 self.best_val_loss = val_loss
                 if epoch % 100 == 0:
-                    print(f'🎉 New best validation loss: {val_loss:.6f}')
+                    log_message(f'🎉 New best validation loss: {val_loss:.6f}')
             
             # Save checkpoint every 1000 epochs or if best
             if (epoch + 1) % 1000 == 0 or is_best:
                 checkpoint_path = self.checkpoint_dir / f'extreme_checkpoint_epoch_{epoch+1}.pth'
                 save_checkpoint(self.model, self.optimizer, epoch, val_loss, checkpoint_path)
                 if epoch % 100 == 0:
-                    print(f'💾 Checkpoint saved: {checkpoint_path}')
+                    log_message(f'💾 Checkpoint saved: {checkpoint_path}')
             
             # Cleanup old checkpoints
             self._cleanup_old_checkpoints()
             
             # Visualize predictions every 1000 epochs
             if (epoch + 1) % 1000 == 0:
-                print("🎨 Visualizing predictions...")
+                log_message("🎨 Visualizing predictions...")
                 visualize_predictions(self.model, self.val_loader, self.device, num_samples=1)
         
-        print(f"\n✅ Extreme training complete! Best validation loss: {self.best_val_loss:.6f}")
-        print("🎯 Final overfitting achieved!")
+        log_message(f"\n✅ Extreme training complete! Best validation loss: {self.best_val_loss:.6f}")
+        log_message("🎯 Final overfitting achieved!")
         self.writer.close()
     
     def _cleanup_old_checkpoints(self):
-        """Keep only the last 3 checkpoints for extreme training"""
+        """Keep only the last checkpoint"""
         import glob
         checkpoint_files = glob.glob(str(self.checkpoint_dir / 'extreme_checkpoint_epoch_*.pth'))
         checkpoint_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
         
-        # Keep only last 3 checkpoints
-        if len(checkpoint_files) > 3:
-            for old_checkpoint in checkpoint_files[:-3]:
+        # Keep only the last checkpoint
+        if len(checkpoint_files) > 1:
+            for old_checkpoint in checkpoint_files[:-1]:
                 os.remove(old_checkpoint)
 
 def main():
@@ -215,13 +223,13 @@ def main():
     
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    log_message(f"Using device: {device}")
     
     # Dataset file
     dataset_file = "/teamspace/studios/this_studio/spleen/data/processed/balanced_dataset.json"
     
     # Create data loaders with 1 patch
-    print("🔥 Loading 1 patch for extreme testing...")
+    log_message("🔥 Loading 1 patch for extreme testing...")
     train_loader = get_single_patch_loader(
         dataset_file,
         batch_size=config['batch_size'],
@@ -233,14 +241,14 @@ def main():
     val_loader = train_loader
     
     # Create model
-    print("Creating model...")
+    log_message("Creating model...")
     model = create_model(device, slice_depth=config['slice_depth'])
     
     # Create trainer
     trainer = ExtremeTrainer(model, train_loader, val_loader, device, config)
     
     # Visualize the single patch before training
-    print("Visualizing the single patch before training...")
+    log_message("Visualizing the single patch before training...")
     visualize_predictions(model, val_loader, device, num_samples=1)
     
     # Start extreme training

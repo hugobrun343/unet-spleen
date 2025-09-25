@@ -20,6 +20,15 @@ from models.unet_model import create_model
 from utils.data_loader import get_balanced_data_loaders
 from utils.utils import BCEDiceLoss, calculate_metrics, print_metrics, save_checkpoint, load_checkpoint, visualize_predictions
 
+# Global log file
+LOG_FILE = '/teamspace/studios/this_studio/spleen/logs/training_main.log'
+
+def log_message(message):
+    """Log message to both console and file"""
+    print(message)
+    with open(LOG_FILE, 'a') as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+
 class BalancedTrainer:
     def __init__(self, model, train_loader, val_loader, device, config):
         self.model = model
@@ -36,7 +45,7 @@ class BalancedTrainer:
         )
         
         # Checkpointing
-        self.checkpoint_dir = Path('checkpoints_balanced')
+        self.checkpoint_dir = Path('/teamspace/studios/this_studio/spleen/checkpoints/training_main')
         self.checkpoint_dir.mkdir(exist_ok=True)
         
         # Tensorboard
@@ -54,7 +63,7 @@ class BalancedTrainer:
     
     def log_message(self, message):
         """Log message to both console and file"""
-        print(message)
+        log_message(message)
         with open(self.log_file, 'a') as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
         
@@ -129,10 +138,10 @@ class BalancedTrainer:
     
     def train(self, num_epochs):
         """Main training loop"""
-        print(f"🚀 BALANCED TRAINING - Starting training for {num_epochs} epochs...")
-        print(f"Device: {self.device}")
-        print(f"Train samples: {len(self.train_loader.dataset)}")
-        print(f"Val samples: {len(self.val_loader.dataset)}")
+        log_message(f"🚀 BALANCED TRAINING - Starting training for {num_epochs} epochs...")
+        log_message(f"Device: {self.device}")
+        log_message(f"Train samples: {len(self.train_loader.dataset)}")
+        log_message(f"Val samples: {len(self.val_loader.dataset)}")
         
         for epoch in range(self.start_epoch, num_epochs):
             start_time = time.time()
@@ -159,50 +168,50 @@ class BalancedTrainer:
             
             # Print epoch results
             epoch_time = time.time() - start_time
-            print(f'\nEpoch {epoch+1}/{num_epochs} ({epoch_time:.1f}s)')
-            print(f'Train - Loss: {train_loss:.4f}, Dice: {train_metrics["dice"]:.4f}, IoU: {train_metrics["iou"]:.4f}')
-            print(f'Val   - Loss: {val_loss:.4f}, Dice: {val_metrics["dice"]:.4f}, IoU: {val_metrics["iou"]:.4f}')
-            print(f'LR: {self.optimizer.param_groups[0]["lr"]:.2e}')
+            log_message(f'\nEpoch {epoch+1}/{num_epochs} ({epoch_time:.1f}s)')
+            log_message(f'Train - Loss: {train_loss:.4f}, Dice: {train_metrics["dice"]:.4f}, IoU: {train_metrics["iou"]:.4f}')
+            log_message(f'Val   - Loss: {val_loss:.4f}, Dice: {val_metrics["dice"]:.4f}, IoU: {val_metrics["iou"]:.4f}')
+            log_message(f'LR: {self.optimizer.param_groups[0]["lr"]:.2e}')
             
             # Save checkpoint
             is_best = val_loss < self.best_val_loss
             if is_best:
                 self.best_val_loss = val_loss
-                print(f'🎉 New best validation loss: {val_loss:.4f}')
+                log_message(f'🎉 New best validation loss: {val_loss:.4f}')
             
             # Save checkpoint every 10 epochs or if best
             if (epoch + 1) % 10 == 0 or is_best:
                 checkpoint_path = self.checkpoint_dir / f'balanced_checkpoint_epoch_{epoch+1}.pth'
                 save_checkpoint(self.model, self.optimizer, epoch, val_loss, checkpoint_path)
-                print(f'💾 Checkpoint saved: {checkpoint_path}')
+                log_message(f'💾 Checkpoint saved: {checkpoint_path}')
             
             # Cleanup old checkpoints
             self._cleanup_old_checkpoints()
             
             # Visualize predictions every 20 epochs
             if (epoch + 1) % 20 == 0:
-                print("🎨 Visualizing predictions...")
+                log_message("🎨 Visualizing predictions...")
                 visualize_predictions(self.model, self.val_loader, self.device, num_samples=2)
         
-        print(f"\n✅ Training complete! Best validation loss: {self.best_val_loss:.4f}")
+        log_message(f"\n✅ Training complete! Best validation loss: {self.best_val_loss:.4f}")
         self.writer.close()
     
     def _cleanup_old_checkpoints(self):
-        """Keep only the last 2 checkpoints to save disk space"""
+        """Keep only the last checkpoint"""
         import glob
         checkpoint_files = glob.glob(str(self.checkpoint_dir / 'balanced_checkpoint_epoch_*.pth'))
         checkpoint_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
         
-        # Keep only last 2 checkpoints
-        if len(checkpoint_files) > 2:
-            for old_checkpoint in checkpoint_files[:-2]:
+        # Keep only the last checkpoint
+        if len(checkpoint_files) > 1:
+            for old_checkpoint in checkpoint_files[:-1]:
                 os.remove(old_checkpoint)
-                print(f"🗑️ Removed old checkpoint: {old_checkpoint}")
+                log_message(f"🗑️ Removed old checkpoint: {old_checkpoint}")
 
 def main():
     # Configuration
     config = {
-        'batch_size': 4,
+        'batch_size': 1,
         'learning_rate': 1e-4,
         'num_epochs': 100,
         'num_workers': 4,
@@ -211,13 +220,13 @@ def main():
     
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    log_message(f"Using device: {device}")
     
     # Dataset file
     dataset_file = "/teamspace/studios/this_studio/spleen/data/processed/balanced_dataset.json"
     
     # Create data loaders
-    print("Loading balanced dataset...")
+    log_message("Loading balanced dataset...")
     train_loader, val_loader = get_balanced_data_loaders(
         dataset_file,
         batch_size=config['batch_size'],
@@ -226,14 +235,14 @@ def main():
     )
     
     # Create model
-    print("Creating model...")
+    log_message("Creating model...")
     model = create_model(device, slice_depth=config['slice_depth'])
     
     # Create trainer
     trainer = BalancedTrainer(model, train_loader, val_loader, device, config)
     
     # Visualize some predictions before training
-    print("Visualizing predictions before training...")
+    log_message("Visualizing predictions before training...")
     visualize_predictions(model, val_loader, device, num_samples=2)
     
     # Start training

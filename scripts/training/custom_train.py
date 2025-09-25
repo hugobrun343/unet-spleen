@@ -226,10 +226,10 @@ def main():
     
     # Configuration
     config = {
-        'batch_size': 4,
+        'batch_size': 1,
         'learning_rate': 1e-3,
         'num_epochs': args.epochs,
-        'num_workers': 4,
+        'num_workers': 1,
         'slice_depth': 5
     }
     

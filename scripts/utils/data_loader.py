@@ -58,16 +58,13 @@ class BalancedSpleenDataset(Dataset):
         else:
             raise ValueError("split must be 'train', 'val', or 'test'")
         
-        print(f"📊 Loaded {len(self.patches)} {split} patches")
-        
-        # Print statistics
+        # Statistics (only print in debug mode)
         if split in ['train', 'val']:
             labeled_count = len([p for p in self.patches if p['is_labeled']])
             empty_count = len([p for p in self.patches if not p['is_labeled']])
-            print(f"🎯 Labeled: {labeled_count}, Empty: {empty_count}")
-            print(f"📈 Labeled ratio: {labeled_count/len(self.patches):.2%}")
+            pass
         else:
-            print(f"🧪 Test mode: {len(self.patches)} labeled patches")
+            pass
     
     def __len__(self):
         return len(self.patches)
@@ -164,7 +161,85 @@ def get_balanced_data_loaders(dataset_file, batch_size=4, num_workers=4, slice_d
     
     return train_loader, val_loader
 
-def get_mixed_data_loaders(dataset_file, batch_size=4, num_workers=4, slice_depth=5, labeled_patches=3, unlabeled_patches=2):
+def get_custom_balanced_data_loaders(dataset_file, batch_size=4, num_workers=4, slice_depth=5, total_patches=None):
+    """
+    Create train and validation data loaders with custom balanced distribution:
+    - 80% train, 20% validation
+    - 50% labeled, 50% unlabeled in each split
+    """
+    # Load dataset info
+    with open(dataset_file, 'r') as f:
+        data = json.load(f)
+    
+    # Get all patches from train and val
+    all_train_patches = data['train_patches']
+    all_val_patches = data['val_patches']
+    all_patches = all_train_patches + all_val_patches
+    
+    # Get labeled and unlabeled patches
+    labeled_patches_list = []
+    unlabeled_patches_list = []
+    for patch in all_patches:
+        if patch['is_labeled']:
+            labeled_patches_list.append(patch)
+        else:
+            unlabeled_patches_list.append(patch)
+    
+    # Calculate distribution
+    if total_patches is None:
+        total_patches = len(all_patches)
+    
+    train_patches = int(total_patches * 0.8)
+    val_patches = total_patches - train_patches
+    
+    train_labeled = train_patches // 2
+    train_unlabeled = train_patches - train_labeled
+    val_labeled = val_patches // 2
+    val_unlabeled = val_patches - val_labeled
+    
+    # Select patches
+    train_labeled_patches = labeled_patches_list[:train_labeled]
+    train_unlabeled_patches = unlabeled_patches_list[:train_unlabeled]
+    val_labeled_patches = labeled_patches_list[train_labeled:train_labeled + val_labeled]
+    val_unlabeled_patches = unlabeled_patches_list[train_unlabeled:train_unlabeled + val_unlabeled]
+    
+    # Combine patches
+    train_patches = train_labeled_patches + train_unlabeled_patches
+    val_patches = val_labeled_patches + val_unlabeled_patches
+    
+    # Log patch selection (only in debug mode)
+    # print(f"🔍 Custom balanced patches:")
+    # print(f"   Train: {len(train_patches)} patches ({len(train_labeled_patches)} labeled, {len(train_unlabeled_patches)} unlabeled)")
+    # print(f"   Val: {len(val_patches)} patches ({len(val_labeled_patches)} labeled, {len(val_unlabeled_patches)} unlabeled)")
+    
+    # Create datasets
+    train_dataset = BalancedSpleenDataset(dataset_file, split='train', slice_depth=slice_depth)
+    val_dataset = BalancedSpleenDataset(dataset_file, split='val', slice_depth=slice_depth)
+    
+    # Override patches
+    train_dataset.patches = train_patches
+    val_dataset.patches = val_patches
+    
+    # Create data loaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+    
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+    
+    return train_loader, val_loader
+
+def get_mixed_data_loaders(dataset_file, batch_size=4, num_workers=4, slice_depth=5, train_labeled=5, train_unlabeled=2, val_labeled=2, val_unlabeled=1):
     """
     Create train and validation data loaders with mixed labeled/unlabeled patches
     """
@@ -189,17 +264,24 @@ def get_mixed_data_loaders(dataset_file, batch_size=4, num_workers=4, slice_dept
         if not patch['is_labeled']:
             unlabeled_patches_list.append(patch)
     
-    # Select the requested number of patches
-    selected_labeled = labeled_patches_list[:labeled_patches]
-    selected_unlabeled = unlabeled_patches_list[:unlabeled_patches]
+    # Select patches for train and validation separately
+    train_labeled_patches = labeled_patches_list[:train_labeled]
+    train_unlabeled_patches = unlabeled_patches_list[:train_unlabeled]
+    val_labeled_patches = labeled_patches_list[train_labeled:train_labeled + val_labeled]
+    val_unlabeled_patches = unlabeled_patches_list[train_unlabeled:train_unlabeled + val_unlabeled]
     
-    # Combine all patches
-    all_patches = selected_labeled + selected_unlabeled
+    # Combine patches for train and val
+    train_patches = train_labeled_patches + train_unlabeled_patches
+    val_patches = val_labeled_patches + val_unlabeled_patches
     
-    # Split 80/20
-    train_size = int(len(all_patches) * 0.8)
-    train_patches = all_patches[:train_size]
-    val_patches = all_patches[train_size:]
+    # Log patch selection for debugging (only in debug mode)
+    # print(f"🔍 Selected patches:")
+    # print(f"   Train labeled ({len(train_labeled_patches)}): {[p['volume_name'] for p in train_labeled_patches]}")
+    # print(f"   Train unlabeled ({len(train_unlabeled_patches)}): {[p['volume_name'] for p in train_unlabeled_patches]}")
+    # print(f"   Val labeled ({len(val_labeled_patches)}): {[p['volume_name'] for p in val_labeled_patches]}")
+    # print(f"   Val unlabeled ({len(val_unlabeled_patches)}): {[p['volume_name'] for p in val_unlabeled_patches]}")
+    # print(f"   Total train: {len(train_patches)} patches")
+    # print(f"   Total val: {len(val_patches)} patches")
     
     # Create datasets
     train_dataset = BalancedSpleenDataset(dataset_file, split='train', slice_depth=slice_depth)

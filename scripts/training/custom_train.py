@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Quick training script using balanced dataset with 20 patches
-- Uses balanced_dataset.json for training
-- Limited to 20 patches for fast testing
-- Quick debugging and validation
+Custom training script with configurable epochs and patches
+- Takes 2 parameters: num_epochs and total_patches
+- 80/20 train/validation split
+- 50/50 labeled/unlabeled distribution in both train and val
+- Balanced distribution of labeled/unlabeled patches
 """
 
 import torch
@@ -11,32 +12,30 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 import os
 import time
+import sys
+import argparse
 from pathlib import Path
 
-import sys
-from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from models.unet_model import create_model
-from utils.data_loader import get_mixed_data_loaders
+from utils.data_loader import get_custom_balanced_data_loaders
 from utils.utils import BCEDiceLoss, calculate_metrics, print_metrics, save_checkpoint, load_checkpoint, visualize_predictions
 
-# Global log file
-LOG_FILE = '/teamspace/studios/this_studio/spleen/logs/quick_training.log'
-
-def log_message(message):
+def log_message(message, log_file):
     """Log message to both console and file"""
     print(message)
-    with open(LOG_FILE, 'a') as f:
+    with open(log_file, 'a') as f:
         f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
 
-class QuickBalancedTrainer:
-    def __init__(self, model, train_loader, val_loader, device, config):
+class CustomTrainer:
+    def __init__(self, model, train_loader, val_loader, device, config, log_file):
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.device = device
         self.config = config
+        self.log_file = log_file
         
         # Loss and optimizer
         self.criterion = BCEDiceLoss()
@@ -46,28 +45,16 @@ class QuickBalancedTrainer:
         )
         
         # Checkpointing
-        self.checkpoint_dir = Path('/teamspace/studios/this_studio/spleen/checkpoints/quick_training')
+        self.checkpoint_dir = Path('/teamspace/studios/this_studio/spleen/checkpoints/custom_training')
         self.checkpoint_dir.mkdir(exist_ok=True)
         
         # Tensorboard
-        self.writer = SummaryWriter('runs/quick_training')
-        
-        # Log file
-        self.log_file = '/teamspace/studios/this_studio/spleen/logs/quick_training.log'
-        # Clear previous log
-        with open(self.log_file, 'w') as f:
-            f.write(f"Quick training started at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        self.writer = SummaryWriter('runs/custom_training')
         
         # Training state
         self.start_epoch = 0
         self.best_val_loss = float('inf')
     
-    def log_message(self, message):
-        """Log message to both console and file"""
-        print(message)
-        with open(self.log_file, 'a') as f:
-            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
-        
     def train_epoch(self, epoch):
         """Train for one epoch"""
         self.model.train()
@@ -97,10 +84,10 @@ class QuickBalancedTrainer:
             for key in total_metrics:
                 total_metrics[key] += metrics[key]
             
-            # Print progress (more frequent for small dataset)
-            if batch_idx % 1 == 0:  # Print every batch for small dataset
+            # Print progress every 10 batches
+            if batch_idx % 10 == 0:
                 log_message(f'Epoch {epoch}, Batch {batch_idx}/{len(self.train_loader)}, '
-                      f'Loss: {loss.item():.4f}, Dice: {metrics["dice"]:.4f}')
+                      f'Loss: {loss.item():.4f}, Dice: {metrics["dice"]:.4f}', self.log_file)
         
         # Calculate averages
         avg_loss = total_loss / len(self.train_loader)
@@ -138,11 +125,11 @@ class QuickBalancedTrainer:
         return avg_loss, avg_metrics
     
     def train(self, num_epochs):
-        """Main training loop for quick testing"""
-        log_message(f"🚀 QUICK MIXED TRAINING - Starting training for {num_epochs} epochs...")
-        log_message(f"Device: {self.device}")
-        log_message(f"Train samples: {len(self.train_loader.dataset)}")
-        log_message(f"Val samples: {len(self.val_loader.dataset)}")
+        """Main training loop"""
+        log_message(f"🚀 CUSTOM TRAINING - Starting training for {num_epochs} epochs...", self.log_file)
+        log_message(f"Device: {self.device}", self.log_file)
+        log_message(f"Train samples: {len(self.train_loader.dataset)}", self.log_file)
+        log_message(f"Val samples: {len(self.val_loader.dataset)}", self.log_file)
         
         for epoch in range(self.start_epoch, num_epochs):
             start_time = time.time()
@@ -169,86 +156,123 @@ class QuickBalancedTrainer:
             
             # Print epoch results
             epoch_time = time.time() - start_time
-            log_message(f'\nEpoch {epoch+1}/{num_epochs} ({epoch_time:.1f}s)')
-            log_message(f'Train - Loss: {train_loss:.4f}, Dice: {train_metrics["dice"]:.4f}, IoU: {train_metrics["iou"]:.4f}')
-            log_message(f'Val   - Loss: {val_loss:.4f}, Dice: {val_metrics["dice"]:.4f}, IoU: {val_metrics["iou"]:.4f}')
-            log_message(f'LR: {self.optimizer.param_groups[0]["lr"]:.2e}')
+            log_message(f'\nEpoch {epoch+1}/{num_epochs} ({epoch_time:.1f}s)', self.log_file)
+            log_message(f'Train - Loss: {train_loss:.4f}, Dice: {train_metrics["dice"]:.4f}, IoU: {train_metrics["iou"]:.4f}', self.log_file)
+            log_message(f'Val   - Loss: {val_loss:.4f}, Dice: {val_metrics["dice"]:.4f}, IoU: {val_metrics["iou"]:.4f}', self.log_file)
+            log_message(f'LR: {self.optimizer.param_groups[0]["lr"]:.2e}', self.log_file)
             
             # Save checkpoint
             is_best = val_loss < self.best_val_loss
             if is_best:
                 self.best_val_loss = val_loss
-                log_message(f'🎉 New best validation loss: {val_loss:.4f}')
+                log_message(f'🎉 New best validation loss: {val_loss:.4f}', self.log_file)
             
-            # Save checkpoint every 5 epochs or if best
-            if (epoch + 1) % 5 == 0 or is_best:
-                checkpoint_path = self.checkpoint_dir / f'quick_balanced_checkpoint_epoch_{epoch+1}.pth'
+            # Save checkpoint every 10 epochs or if best
+            if (epoch + 1) % 10 == 0 or is_best:
+                checkpoint_path = self.checkpoint_dir / f'custom_checkpoint_epoch_{epoch+1}.pth'
                 save_checkpoint(self.model, self.optimizer, epoch, val_loss, checkpoint_path)
-                log_message(f'💾 Checkpoint saved: {checkpoint_path}')
+                log_message(f'💾 Checkpoint saved: {checkpoint_path}', self.log_file)
             
             # Cleanup old checkpoints
             self._cleanup_old_checkpoints()
             
-            # Visualize predictions every 10 epochs
-            if (epoch + 1) % 10 == 0:
-                log_message("🎨 Visualizing predictions...")
-                visualize_predictions(self.model, self.val_loader, self.device, num_samples=1)
+            # Visualize predictions every 20 epochs
+            if (epoch + 1) % 20 == 0:
+                log_message("🎨 Visualizing predictions...", self.log_file)
+                visualize_predictions(self.model, self.val_loader, self.device, num_samples=2)
         
-        log_message(f"\n✅ Quick training complete! Best validation loss: {self.best_val_loss:.4f}")
+        log_message(f"\n✅ Custom training complete! Best validation loss: {self.best_val_loss:.4f}", self.log_file)
         self.writer.close()
     
     def _cleanup_old_checkpoints(self):
-        """Keep only the last 1 checkpoint for quick training to save disk space"""
+        """Keep only the last 2 checkpoints"""
         import glob
-        checkpoint_files = glob.glob(str(self.checkpoint_dir / 'quick_balanced_checkpoint_epoch_*.pth'))
+        checkpoint_files = glob.glob(str(self.checkpoint_dir / 'custom_checkpoint_epoch_*.pth'))
         checkpoint_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
         
-        # Keep only last 1 checkpoint
-        if len(checkpoint_files) > 1:
-            for old_checkpoint in checkpoint_files[:-1]:
+        # Keep only last 2 checkpoints
+        if len(checkpoint_files) > 2:
+            for old_checkpoint in checkpoint_files[:-2]:
                 os.remove(old_checkpoint)
-                log_message(f"🗑️ Removed old checkpoint: {old_checkpoint}")
+                log_message(f"🗑️ Removed old checkpoint: {old_checkpoint}", self.log_file)
+
+def create_balanced_patches(total_patches):
+    """
+    Create balanced patch distribution:
+    - 80% train, 20% validation
+    - 50% labeled, 50% unlabeled in each split
+    """
+    train_patches = int(total_patches * 0.8)
+    val_patches = total_patches - train_patches
+    
+    train_labeled = train_patches // 2
+    train_unlabeled = train_patches - train_labeled
+    val_labeled = val_patches // 2
+    val_unlabeled = val_patches - val_labeled
+    
+    return {
+        'train_labeled': train_labeled,
+        'train_unlabeled': train_unlabeled,
+        'val_labeled': val_labeled,
+        'val_unlabeled': val_unlabeled
+    }
 
 def main():
-    # Configuration for quick testing
+    parser = argparse.ArgumentParser(description='Custom training with configurable epochs and patches')
+    parser.add_argument('epochs', type=int, help='Number of training epochs')
+    parser.add_argument('patches', type=int, help='Total number of patches')
+    
+    args = parser.parse_args()
+    
+    # Configuration
     config = {
-        'batch_size': 1,
+        'batch_size': 4,
         'learning_rate': 1e-3,
-        'num_epochs': 100,
-        'num_workers': 1,
+        'num_epochs': args.epochs,
+        'num_workers': 4,
         'slice_depth': 5
     }
     
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    log_message(f"Using device: {device}")
+    
+    # Log file
+    log_file = f'/teamspace/studios/this_studio/spleen/logs/custom_training_{args.epochs}ep_{args.patches}patches.log'
+    with open(log_file, 'w') as f:
+        f.write(f"Custom training started at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    
+    log_message(f"Using device: {device}", log_file)
+    
+    # Calculate balanced patch distribution
+    patch_dist = create_balanced_patches(args.patches)
+    log_message(f"📊 Patch distribution:", log_file)
+    log_message(f"   Total patches: {args.patches}", log_file)
+    log_message(f"   Train: {patch_dist['train_labeled'] + patch_dist['train_unlabeled']} patches ({patch_dist['train_labeled']} labeled, {patch_dist['train_unlabeled']} unlabeled)", log_file)
+    log_message(f"   Val: {patch_dist['val_labeled'] + patch_dist['val_unlabeled']} patches ({patch_dist['val_labeled']} labeled, {patch_dist['val_unlabeled']} unlabeled)", log_file)
     
     # Dataset file
     dataset_file = "/teamspace/studios/this_studio/spleen/data/processed/balanced_dataset.json"
     
-    # Create data loaders with 10 patches total: 7 train (5 labeled + 2 unlabeled), 3 val (2 labeled + 1 unlabeled)
-    log_message("🔬 Loading 10 patches: 7 train (5 labeled + 2 unlabeled), 3 val (2 labeled + 1 unlabeled)...")
-    train_loader, val_loader = get_mixed_data_loaders(
+    # Create data loaders with balanced distribution
+    log_message("🔬 Loading balanced patches...", log_file)
+    train_loader, val_loader = get_custom_balanced_data_loaders(
         dataset_file,
         batch_size=config['batch_size'],
         num_workers=config['num_workers'],
         slice_depth=config['slice_depth'],
-        train_labeled=5,
-        train_unlabeled=2,
-        val_labeled=2,
-        val_unlabeled=1
+        total_patches=args.patches
     )
     
     # Create model
-    log_message("Creating model...")
+    log_message("Creating model...", log_file)
     model = create_model(device, slice_depth=config['slice_depth'])
     
     # Create trainer
-    trainer = QuickBalancedTrainer(model, train_loader, val_loader, device, config)
+    trainer = CustomTrainer(model, train_loader, val_loader, device, config, log_file)
     
     # Visualize some predictions before training
-    log_message("Visualizing predictions before training...")
-    visualize_predictions(model, val_loader, device, num_samples=1)
+    log_message("Visualizing predictions before training...", log_file)
+    visualize_predictions(model, val_loader, device, num_samples=2)
     
     # Start training
     trainer.train(config['num_epochs'])

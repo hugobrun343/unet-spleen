@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from models.unet_model import create_model
-from utils.data_loader import get_test_loader
+from utils.data_loader import get_mixed_data_loaders
 from utils.utils import BCEDiceLoss, calculate_metrics, print_metrics, save_checkpoint, load_checkpoint, visualize_predictions
 
 # Global log file
@@ -139,7 +139,7 @@ class QuickBalancedTrainer:
     
     def train(self, num_epochs):
         """Main training loop for quick testing"""
-        log_message(f"🚀 QUICK BALANCED TRAINING - Starting training for {num_epochs} epochs...")
+        log_message(f"🚀 QUICK MIXED TRAINING - Starting training for {num_epochs} epochs...")
         log_message(f"Device: {self.device}")
         log_message(f"Train samples: {len(self.train_loader.dataset)}")
         log_message(f"Val samples: {len(self.val_loader.dataset)}")
@@ -214,8 +214,8 @@ def main():
     config = {
         'batch_size': 1,
         'learning_rate': 1e-3,
-        'num_epochs': 50,
-        'num_workers': 2,
+        'num_epochs': 500,
+        'num_workers': 1,
         'slice_depth': 5
     }
     
@@ -226,18 +226,16 @@ def main():
     # Dataset file
     dataset_file = "/teamspace/studios/this_studio/spleen/data/processed/balanced_dataset.json"
     
-    # Create data loaders with 20 patches
-    log_message("🔬 Loading 20 patches for quick testing...")
-    train_loader = get_test_loader(
+    # Create data loaders with 5 patches (3 labeled, 2 unlabeled) and 80/20 split
+    log_message("🔬 Loading 5 patches (3 labeled, 2 unlabeled) with 80/20 train/val split...")
+    train_loader, val_loader = get_mixed_data_loaders(
         dataset_file,
-        test_patches=20,
         batch_size=config['batch_size'],
         num_workers=config['num_workers'],
-        slice_depth=config['slice_depth']
+        slice_depth=config['slice_depth'],
+        labeled_patches=3,
+        unlabeled_patches=2
     )
-    
-    # Use same data for validation (small dataset)
-    val_loader = train_loader
     
     # Create model
     log_message("Creating model...")

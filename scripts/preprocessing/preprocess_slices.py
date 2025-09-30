@@ -148,7 +148,7 @@ def preprocess_dataset(dataset_path, output_path, slice_depth=5):
 
 def main():
     """Main preprocessing function"""
-    dataset_path = "/teamspace/studios/this_studio/spleen/data/raw/Dataset001_Spleen"
+    dataset_path = "/teamspace/studios/this_studio/spleen/data/raw"
     output_path = "/teamspace/studios/this_studio/spleen/data/processed"
     
     # Configuration

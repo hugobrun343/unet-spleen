@@ -26,10 +26,10 @@ def parse_log_file(log_file):
     while i < len(lines):
         line = lines[i].strip()
         
-        # Look for epoch summary lines
-        epoch_match = re.search(r'Epoch (\d+)/(\d+)', line)
-        if epoch_match:
-            epoch_num = int(epoch_match.group(1))
+        # Look for "Epoch X Summary" lines (new format)
+        summary_match = re.search(r'Epoch (\d+) Summary:', line)
+        if summary_match:
+            epoch_num = int(summary_match.group(1))
             
             # Get next lines for train and val metrics
             if i + 1 < len(lines):

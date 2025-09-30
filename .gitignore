@@ -21,22 +21,9 @@ wheels/
 *.egg
 MANIFEST
 
-# PyTorch
-*.pth
-*.pt
-checkpoints/
-runs/
-logs/
-tensorboard_logs/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Environment
-.env
-.venv
-env/
+# Virtual environments
 venv/
+env/
 ENV/
 env.bak/
 venv.bak/
@@ -48,6 +35,34 @@ venv.bak/
 *.swo
 *~
 
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyTorch
+*.pth
+*.pt
+
+# Data files (too large for git)
+data/raw/
+data/patches/
+*.nii
+*.nii.gz
+
+# Logs
+logs/*.log
+*.log
+
+# Checkpoints
+checkpoints/
+models/
+
+# TensorBoard
+runs/
+tensorboard/
+
+# Results
+results/
+
 # OS
 .DS_Store
 .DS_Store?
@@ -57,55 +72,11 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Medical Data (IMPORTANT - keep private!)
-Dataset001_Spleen/
-*.nii
-*.nii.gz
-*.dcm
-*.dicom
-medical_data/
-datasets/
-raw_data/
-
-# Data files
-data_splits.json
-*.json
-*.nii
-*.nii.gz
-
-# Model outputs
-outputs/
-results/
-predictions/
-masks/
-visualizations/
-
 # Temporary files
-tmp/
-temp/
 *.tmp
 *.temp
+temp/
+tmp/
 
-# Logs
-*.log
-logs/
-
-# Cache
-.cache/
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Conda
-.conda/
-
-# Weights & Biases
-wandb/
-
-# MLflow
-mlruns/
-
-# Other
-*.zip
-*.tar.gz
-*.rar
+# Kaggle
+.kaggle/

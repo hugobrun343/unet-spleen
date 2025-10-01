@@ -58,6 +58,60 @@ def postprocess_prediction(pred_volume):
     
     return processed_mask
 
+def sliding_window_inference(model, volume_data, device, slice_depth=5, batch_size=1):
+    """
+    Perform sliding window inference on full 3D volume
+    Args:
+        model: Trained model
+        volume_data: Full 3D volume (H, W, D)
+        device: torch device
+        slice_depth: Depth of sliding window
+        batch_size: Batch size for inference
+    Returns:
+        prediction_volume: Full 3D prediction volume
+    """
+    H, W, D = volume_data.shape
+    
+    # Initialize volume and count array for averaging overlaps
+    pred_volume = np.zeros((H, W, D), dtype=np.float32)
+    count_volume = np.zeros((H, W, D), dtype=np.float32)
+    
+    model.eval()
+    with torch.no_grad():
+        # Slide through the volume
+        for start_slice in range(D - slice_depth + 1):
+            # Extract patch
+            patch = volume_data[:, :, start_slice:start_slice + slice_depth]
+            
+            # Transpose to [slice_depth, H, W]
+            patch = np.transpose(patch, (2, 0, 1))
+            
+            # Normalize
+            patch = (patch - patch.mean()) / (patch.std() + 1e-8)
+            
+            # Convert to tensor and add batch dimension: [1, slice_depth, H, W]
+            patch_tensor = torch.from_numpy(patch).float().unsqueeze(0).to(device)
+            
+            # Predict - output shape: [1, slice_depth, H, W]
+            output = model(patch_tensor)
+            pred = torch.sigmoid(output)
+            
+            # Get predictions for all slices: [slice_depth, H, W]
+            pred_np = pred[0].cpu().numpy()
+            
+            # Store predictions for all slices in this patch
+            for i in range(slice_depth):
+                slice_idx = start_slice + i
+                if slice_idx < D:
+                    pred_volume[:, :, slice_idx] += pred_np[i]
+                    count_volume[:, :, slice_idx] += 1
+    
+    # Average overlapping regions
+    count_volume = np.maximum(count_volume, 1)  # Avoid division by zero
+    pred_volume = pred_volume / count_volume
+    
+    return pred_volume
+
 def reconstruct_volume_from_patches(patches_dict, volume_shape, slice_depth=5, overlap_mode='max'):
     """
     Reconstruct full 3D volume from overlapping patches using sliding window
@@ -103,52 +157,6 @@ def reconstruct_volume_from_patches(patches_dict, volume_shape, slice_depth=5, o
     volume = volume / count
     
     return volume
-
-def sliding_window_inference(model, volume_data, device, slice_depth=5, batch_size=1):
-    """
-    Perform sliding window inference on full 3D volume
-    Args:
-        model: Trained model
-        volume_data: Full 3D volume (H, W, D)
-        device: torch device
-        slice_depth: Depth of sliding window
-        batch_size: Batch size for inference
-    Returns:
-        prediction_volume: Full 3D prediction volume
-    """
-    H, W, D = volume_data.shape
-    predictions = {}
-    
-    model.eval()
-    with torch.no_grad():
-        # Slide through the volume
-        for start_slice in range(D - slice_depth + 1):
-            # Extract patch
-            patch = volume_data[:, :, start_slice:start_slice + slice_depth]
-            
-            # Transpose to [C, H, W] where C = slice_depth
-            patch = np.transpose(patch, (2, 0, 1))  # [D, H, W] -> [D, H, W]
-            
-            # Normalize
-            patch = (patch - patch.mean()) / (patch.std() + 1e-8)
-            
-            # Convert to tensor and add batch dimension
-            patch_tensor = torch.from_numpy(patch).float().unsqueeze(0).to(device)
-            
-            # Predict
-            output = model(patch_tensor)
-            pred = torch.sigmoid(output)
-            
-            # Store prediction for middle slice
-            middle_idx = slice_depth // 2
-            predictions[start_slice + middle_idx] = pred[0, 0].cpu().numpy()
-    
-    # Reconstruct full volume
-    pred_volume = np.zeros((H, W, D), dtype=np.float32)
-    for slice_idx, pred_slice in predictions.items():
-        pred_volume[:, :, slice_idx] = pred_slice
-    
-    return pred_volume
 
 def evaluate_with_postprocessing(model, volume_path, label_path, device, slice_depth=5):
     """
@@ -210,4 +218,3 @@ def calculate_iou(pred, target, smooth=1e-5):
     union = pred.sum() + target.sum() - intersection
     iou = (intersection + smooth) / (union + smooth)
     return iou
-

@@ -17,9 +17,9 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from models.unet_model import UNet2D
+from models.unet_model import UNet
 from utils.data_loader import get_balanced_data_loaders
-from utils.utils import calculate_loss, calculate_dice, calculate_iou, save_checkpoint
+from utils.utils import dice_coefficient, iou_score, save_checkpoint
 
 LOG_FILE = None
 
@@ -45,8 +45,8 @@ def train_epoch(model, loader, criterion, optimizer, device, epoch, log_every=10
         optimizer.step()
         
         with torch.no_grad():
-            batch_dice = calculate_dice(outputs, masks)
-            batch_iou = calculate_iou(outputs, masks)
+            batch_dice = dice_coefficient(outputs, masks)
+            batch_iou = iou_score(outputs, masks)
             total_loss += loss.item()
             total_dice += batch_dice
             total_iou += batch_iou
@@ -69,8 +69,8 @@ def validate_epoch(model, loader, criterion, device):
             outputs = model(images)
             
             total_loss += criterion(outputs, masks).item()
-            total_dice += calculate_dice(outputs, masks)
-            total_iou += calculate_iou(outputs, masks)
+            total_dice += dice_coefficient(outputs, masks)
+            total_iou += iou_score(outputs, masks)
             num_batches += 1
     
     return total_loss/num_batches, total_dice/num_batches, total_iou/num_batches
@@ -151,7 +151,7 @@ def main():
     log_message(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
     
     # Model
-    model = UNet2D(in_channels=5, out_channels=1).to(device)
+    model = UNet(n_channels=1, n_classes=1, slice_depth=5).to(device)
     num_params = sum(p.numel() for p in model.parameters())
     log_message(f"Model parameters: {num_params:,}")
     

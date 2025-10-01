@@ -18,7 +18,7 @@ import numpy as np
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from models.unet_model import UNet2D
+from models.unet_model import UNet
 from postprocessing.utils import (
     sliding_window_inference,
     postprocess_prediction,
@@ -26,9 +26,9 @@ from postprocessing.utils import (
     calculate_iou
 )
 
-def load_model(checkpoint_path, device, in_channels=5):
+def load_model(checkpoint_path, device, slice_depth=5):
     """Load trained model from checkpoint"""
-    model = UNet2D(in_channels=in_channels, out_channels=1)
+    model = UNet(n_channels=1, n_classes=1, slice_depth=slice_depth)
     
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -121,7 +121,7 @@ def main():
     
     # Load model
     print(f"\n📦 Loading model...")
-    model = load_model(args.checkpoint, device, in_channels=5)
+    model = load_model(args.checkpoint, device, slice_depth=5)
     
     # Load dataset to get validation volumes
     dataset_file = "/teamspace/studios/this_studio/spleen/data/processed/dataset_stack.json"

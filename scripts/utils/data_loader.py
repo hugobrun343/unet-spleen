@@ -73,7 +73,7 @@ class BalancedSpleenDataset(Dataset):
         patch_info = self.patches[idx]
         
         # Load image and label from original volume
-        volume_path = Path("/teamspace/studios/this_studio/spleen/data/raw/Dataset001_Spleen")
+        volume_path = Path("/teamspace/studios/this_studio/spleen/data/raw")
         img_path = volume_path / patch_info['volume_name']
         
         # Load image

@@ -4,17 +4,17 @@
 
 Ce projet implémente un système de **segmentation de la rate** sur des images de tomodensitométrie (CT) médicales en utilisant un réseau de neurones U-Net 2D avec contexte 3D.
 
-### 🎯 Objectif principal
+### Objectif principal
 Projet d'apprentissage en deep learning pour comprendre l'utilisation des CNN/U-Net et la segmentation d'images.
 
-### 🔧 Approche technique
+### Approche technique
 - **Architecture** : U-Net 2D avec 5 slices consécutives comme entrée
 - **Datasets** : Deux stratégies (distribué vs adjacent) pour comparer les approches
 - **Post-processing** : Reconstruction 3D avec connected components
 
 ## 🚀 Installation et utilisation
 
-### 📦 Prérequis
+### Prérequis
 ```bash
 # Installation des dépendances
 pip install -r requirements.txt
@@ -23,7 +23,7 @@ pip install -r requirements.txt
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 ```
 
-### ⚙️ Utilisation
+### Utilisation
 
 **1. Preprocessing des données :**
 ```bash
@@ -65,7 +65,7 @@ python scripts/utils/analyze_logs.py logs/train_split.log
 
 ## 📊 Données utilisées
 
-### 🏥 Source des données
+### Source des données
 - **Dataset** : Medical Segmentation (Spleen) - Kaggle
 - **Lien** : https://www.kaggle.com/datasets/dhanvinsankaranand/spleen-segmentation-dataset
 - **Type d'images** : Tomodensitométrie (CT) abdominale
@@ -74,7 +74,7 @@ python scripts/utils/analyze_logs.py logs/train_split.log
 - **Volumes d'entraînement** : 41 volumes avec annotations manuelles
 - **Volumes de test** : 20 volumes pour évaluation finale
 
-### 📈 Stratégies de dataset
+### Stratégies de dataset
 
 **1. Dataset distribué (SPLIT)**
 - **Objectif** : Entraînement généralisé sur toute la distribution des données
@@ -88,7 +88,7 @@ python scripts/utils/analyze_logs.py logs/train_split.log
 
 ## 🧠 Architecture du modèle
 
-### 🏗️ Structure du réseau
+### Structure du réseau
 ```
 Input (5×512×512) → Encoder → Bottleneck → Decoder → Output (512×512)
      ↓                ↓           ↓          ↓
@@ -96,7 +96,7 @@ Input (5×512×512) → Encoder → Bottleneck → Decoder → Output (512×512)
    (contexte)     (downsampling) (upsampling)
 ```
 
-### 🧰 Spécifications techniques
+### Spécifications techniques
 - **Architecture** : U-Net 2D avec Batch Normalization
 - **Entrée** : 5 slices consécutives (512×512×5)
 - **Sortie** : Masque de segmentation binaire (512×512)
